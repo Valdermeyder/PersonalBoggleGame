@@ -2,7 +2,7 @@ import java.util.*;
 
 public class BoggleSolver {
     private SET<String> dictionarySet;
-    private TST<Integer> foundWords;
+    private List<String> foundWords;
 
     // Initializes the data structure using the given array of strings as the dictionary.
     // (You can assume each word in the dictionary contains only the uppercase letters A through Z.)
@@ -11,7 +11,7 @@ public class BoggleSolver {
         for (String word : dictionary) {
             dictionarySet.add(word);
         }
-        foundWords = new TST<Integer>();
+        foundWords = new ArrayList<String>();
     }
 
     // Returns the set of all valid words in the given Boggle board, as an Iterable.
@@ -37,26 +37,66 @@ public class BoggleSolver {
         for (int i = totalBoardSize - colsNumber; i < totalBoardSize - 1; i++) {
             addRightNeighbor(boardDigraph, i);
         }
-        int foundWordTreeValue = 0;
         for (int i = 0; i < totalBoardSize; i++) {
-            BreadthFirstAllPaths breadthFirstAllPaths = new BreadthFirstAllPaths(boardDigraph, i);
+            Map<Integer, Set<List<Integer>>> breadthFirstAllPaths = dfsAllPaths(boardDigraph, i);
             for (int j = 0; j < totalBoardSize; j++) {
                 if (i != j) {
-                    final Set<List<Integer>> allPaths = breadthFirstAllPaths.pathsTo(j);
+                    final Set<List<Integer>> allPaths = breadthFirstAllPaths.get(j);
                     for (List<Integer> charIndexes : allPaths) {
                         StringBuilder possibleWord = new StringBuilder();
                         for (int charIndex : charIndexes) {
                             possibleWord.append(board.getLetter(charIndex / colsNumber, charIndex % colsNumber));
                         }
+                        possibleWord.append(board.getLetter(j / colsNumber, j % colsNumber));
                         final String word = possibleWord.toString();
                         if (dictionarySet.contains(word)) {
-                            foundWords.put(word, foundWordTreeValue++);
+                            foundWords.add(word);
                         }
                     }
                 }
             }
         }
-        return foundWords.keys();
+        return foundWords;
+    }
+
+    private Map<Integer, Set<List<Integer>>> dfsAllPaths(Graph boardDigraph, int v) {
+        Map<Integer, Set<List<Integer>>> allPaths = new HashMap<Integer, Set<List<Integer>>>();
+        dfs(boardDigraph, v, allPaths, new ArrayList<Integer>());
+        return allPaths;
+    }
+
+    private void dfs(Graph boardDigraph, int v, Map<Integer, Set<List<Integer>>> allPaths, List<Integer> visitedNodes) {
+        visitedNodes.add(v);
+        for (int w : boardDigraph.adj(v)) {
+            if (!visitedNodes.contains(w)) {
+                if (allPaths.containsKey(w)) {
+                    Set<List<Integer>> pathsToW = allPaths.get(w);
+                    fillAllPaths(v, allPaths, pathsToW, w);
+                } else {
+                    Set<List<Integer>> pathsToW = new HashSet<List<Integer>>();
+                    fillAllPaths(v, allPaths, pathsToW, w);
+                    allPaths.put(w, pathsToW);
+                }
+                dfs(boardDigraph, w, allPaths, new ArrayList<Integer>(visitedNodes));
+            }
+        }
+    }
+
+    private void fillAllPaths(int v, Map<Integer, Set<List<Integer>>> allPaths, Set<List<Integer>> pathsToW, int w) {
+        final Set<List<Integer>> pathsToV = allPaths.get(v);
+        if (pathsToV == null || pathsToV.isEmpty()) {
+            List<Integer> pathToW = new ArrayList<Integer>();
+            pathToW.add(v);
+            pathsToW.add(pathToW);
+        } else {
+            for (List<Integer> pathToV : pathsToV) {
+                if (!pathToV.contains(w)) {
+                    List<Integer> pathToW = new ArrayList<Integer>(pathToV);
+                    pathToW.add(v);
+                    pathsToW.add(pathToW);
+                }
+            }
+        }
     }
 
     private void addBottomNeighbor(Graph boardDigraph, int currentIndex, int colsNumber) {
@@ -95,132 +135,5 @@ public class BoggleSolver {
         }
     }
 
-    /*************************************************************************
-     *  Compilation:  javac BreadthFirstPaths.java
-     *  Execution:    java BreadthFirstPaths G s
-     *  Dependencies: Graph.java Queue.java Stack.java StdOut.java
-     *  Data files:   http://algs4.cs.princeton.edu/41undirected/tinyCG.txt
-     *
-     *  Run breadth first search on an undirected graph.
-     *  Runs in O(E + V) time.
-     *
-     *  %  java Graph tinyCG.txt
-     *  6 8
-     *  0: 2 1 5
-     *  1: 0 2
-     *  2: 0 1 3 4
-     *  3: 5 4 2
-     *  4: 3 2
-     *  5: 3 0
-     *
-     *  %  java BreadthFirstPaths tinyCG.txt 0
-     *  0 to 0 (0):  0
-     *  0 to 1 (1):  0-1
-     *  0 to 2 (1):  0-2
-     *  0 to 3 (2):  0-2-3
-     *  0 to 4 (2):  0-2-4
-     *  0 to 5 (1):  0-5
-     *
-     *  %  java BreadthFirstPaths largeG.txt 0
-     *  0 to 0 (0):  0
-     *  0 to 1 (418):  0-932942-474885-82707-879889-971961-...
-     *  0 to 2 (323):  0-460790-53370-594358-780059-287921-...
-     *  0 to 3 (168):  0-713461-75230-953125-568284-350405-...
-     *  0 to 4 (144):  0-460790-53370-310931-440226-380102-...
-     *  0 to 5 (566):  0-932942-474885-82707-879889-971961-...
-     *  0 to 6 (349):  0-932942-474885-82707-879889-971961-...
-     *
-     *************************************************************************/
-
-
-    /**
-     * The <tt>BreadthFirstPaths</tt> class represents a data type for finding
-     * shortest paths (number of edges) from a source vertex <em>s</em>
-     * (or a set of source vertices)
-     * to every other vertex in an undirected graph.
-     * <p/>
-     * This implementation uses breadth-first search.
-     * The constructor takes time proportional to <em>V</em> + <em>E</em>,
-     * where <em>V</em> is the number of vertices and <em>E</em> is the number of edges.
-     * It uses extra space (not including the graph) proportional to <em>V</em>.
-     * <p/>
-     * For additional documentation, see <a href="/algs4/41graph">Section 4.1</a> of
-     * <i>Algorithms, 4th Edition</i> by Robert Sedgewick and Kevin Wayne.
-     *
-     * @author Robert Sedgewick
-     * @author Kevin Wayne
-     */
-    private class BreadthFirstAllPaths {
-        private boolean[] marked;  // marked[v] = is there an s-v path
-        private int[] edgeTo;      // edgeTo[v] = previous edge on shortest s-v path
-        private Map<Integer, Set<List<Integer>>> paths;
-
-        /**
-         * Computes the shortest path between the source vertex <tt>s</tt>
-         * and every other vertex in the graph <tt>G</tt>.
-         *
-         * @param G the graph
-         * @param s the source vertex
-         */
-        public BreadthFirstAllPaths(Graph G, int s) {
-            marked = new boolean[G.V()];
-            edgeTo = new int[G.V()];
-            paths = new HashMap<Integer, Set<List<Integer>>>();
-            bfs(G, s);
-        }
-
-        // breadth-first search from a single source
-        private void bfs(Graph G, int s) {
-            Queue<Integer> q = new Queue<Integer>();
-            marked[s] = true;
-            q.enqueue(s);
-
-            while (!q.isEmpty()) {
-                int v = q.dequeue();
-                final Set<List<Integer>> currentPaths = paths.get(v);
-                for (int w : G.adj(v)) {
-                    edgeTo[w] = v;
-                    Set<List<Integer>> newPaths;
-                    if (paths.containsKey(w)) {
-                        newPaths = new HashSet<List<Integer>>(paths.get(w));
-                    } else {
-                        newPaths = new HashSet<List<Integer>>();
-                    }
-                    if (currentPaths == null || currentPaths.isEmpty()) {
-                        List<Integer> newPath = new ArrayList<Integer>();
-                        newPath.add(v);
-                        newPaths.add(newPath);
-                    } else {
-                        for (List<Integer> path : currentPaths) {
-                            List<Integer> newPath = new ArrayList<Integer>(path);
-                            newPath.add(v);
-                            newPaths.add(newPath);
-                        }
-                    }
-                    paths.put(w, newPaths);
-                    if (!marked[w]) {
-                        q.enqueue(w);
-                    }
-                    marked[w] = true;
-                }
-            }
-        }
-
-        /**
-         * Returns a shortest path between the source vertex <tt>s</tt> (or sources)
-         * and <tt>v</tt>, or <tt>null</tt> if no such path.
-         *
-         * @param v the vertex
-         * @return the sequence of vertices on a shortest path, as an Iterable
-         */
-        public Set<List<Integer>> pathsTo(int v) {
-            if (paths.containsKey(v)) {
-                return paths.get(v);
-            }
-            return Collections.emptySet();
-        }
-
-
-    }
 
 }

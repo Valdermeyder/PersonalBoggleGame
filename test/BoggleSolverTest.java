@@ -26,4 +26,16 @@ public class BoggleSolverTest {
         readFiles("dictionary-algs4.txt", "board4x4.txt");
         assertEquals("Score for Boggle Solver is wrong", 33, calculateBoggleSolverScore());
     }
+
+    @Test
+    public void testBoard2x2WithDictionaryAlgs4() {
+        readFiles("dictionary-algs4.txt", "board2x2.txt");
+        assertEquals("Score for Boggle Solver is wrong", 2, calculateBoggleSolverScore());
+    }
+
+    @Test
+    public void testBoard3x3WithDictionaryAlgs4() {
+        readFiles("dictionary-algs4.txt", "board3x3.txt");
+        assertEquals("Score for Boggle Solver is wrong", 11, calculateBoggleSolverScore());
+    }
 }
