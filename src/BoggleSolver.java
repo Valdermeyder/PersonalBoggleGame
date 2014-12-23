@@ -1,23 +1,30 @@
 import java.util.*;
 
 public class BoggleSolver {
+    private BoggleBoard board;
     private SET<String> dictionarySet;
-    private List<String> foundWords;
+    private Set<String> foundWords;
+    private int colsNumber;
+    private TST<Integer> dictionaryTST;
 
     // Initializes the data structure using the given array of strings as the dictionary.
     // (You can assume each word in the dictionary contains only the uppercase letters A through Z.)
     public BoggleSolver(String[] dictionary) {
         dictionarySet = new SET<String>();
+        dictionaryTST = new TST<Integer>();
+        int tstValue = 0;
         for (String word : dictionary) {
             dictionarySet.add(word);
+            dictionaryTST.put(word, tstValue++);
         }
-        foundWords = new ArrayList<String>();
     }
 
     // Returns the set of all valid words in the given Boggle board, as an Iterable.
     public Iterable<String> getAllValidWords(BoggleBoard board) {
+        foundWords = new HashSet<String>();
+        this.board = board;
         final int rowsNumber = board.rows();
-        final int colsNumber = board.cols();
+        colsNumber = board.cols();
         final int totalBoardSize = rowsNumber * colsNumber;
         Graph boardDigraph = new Graph(totalBoardSize);
         for (int i = 0; i < rowsNumber - 1; i++) {
@@ -38,25 +45,38 @@ public class BoggleSolver {
             addRightNeighbor(boardDigraph, i);
         }
         for (int i = 0; i < totalBoardSize; i++) {
-            Map<Integer, Set<List<Integer>>> breadthFirstAllPaths = dfsAllPaths(boardDigraph, i);
-            for (int j = 0; j < totalBoardSize; j++) {
-                if (i != j) {
-                    final Set<List<Integer>> allPaths = breadthFirstAllPaths.get(j);
-                    for (List<Integer> charIndexes : allPaths) {
-                        StringBuilder possibleWord = new StringBuilder();
-                        for (int charIndex : charIndexes) {
-                            possibleWord.append(board.getLetter(charIndex / colsNumber, charIndex % colsNumber));
-                        }
-                        possibleWord.append(board.getLetter(j / colsNumber, j % colsNumber));
-                        final String word = possibleWord.toString();
-                        if (dictionarySet.contains(word)) {
-                            foundWords.add(word);
-                        }
-                    }
-                }
-            }
+            dfsAllPaths(boardDigraph, i);
         }
         return foundWords;
+    }
+
+    private boolean fillFinalWordLists(int graphIndex, List<Integer> charIndexes) {
+        StringBuilder possibleWord = new StringBuilder();
+        char newLetter;
+        for (int charIndex : charIndexes) {
+            newLetter = board.getLetter(charIndex / colsNumber, charIndex % colsNumber);
+            possibleWord.append(newLetter);
+            appendUtoQ(possibleWord, newLetter);
+        }
+        newLetter = board.getLetter(graphIndex / colsNumber, graphIndex % colsNumber);
+        possibleWord.append(newLetter);
+        appendUtoQ(possibleWord, newLetter);
+
+        final String word = possibleWord.toString();
+        if (dictionarySet.contains(word)) {
+            if (word.length() > 2) {
+                foundWords.add(word);
+            }
+            return true;
+        }
+        final Iterable<String> strings = dictionaryTST.prefixMatch(word);
+        return strings.iterator().hasNext();
+    }
+
+    private void appendUtoQ(StringBuilder possibleWord, char newLetter) {
+        if ('Q' == newLetter) {
+            possibleWord.append('U');
+        }
     }
 
     private Map<Integer, Set<List<Integer>>> dfsAllPaths(Graph boardDigraph, int v) {
@@ -69,34 +89,49 @@ public class BoggleSolver {
         visitedNodes.add(v);
         for (int w : boardDigraph.adj(v)) {
             if (!visitedNodes.contains(w)) {
+                boolean needToContinue = false;
                 if (allPaths.containsKey(w)) {
                     Set<List<Integer>> pathsToW = allPaths.get(w);
-                    fillAllPaths(v, allPaths, pathsToW, w);
+                    if (fillAllPaths(v, allPaths, pathsToW, w)) {
+                        needToContinue = true;
+                    }
                 } else {
                     Set<List<Integer>> pathsToW = new HashSet<List<Integer>>();
-                    fillAllPaths(v, allPaths, pathsToW, w);
+                    if (fillAllPaths(v, allPaths, pathsToW, w)) {
+                        needToContinue = true;
+                    }
                     allPaths.put(w, pathsToW);
                 }
-                dfs(boardDigraph, w, allPaths, new ArrayList<Integer>(visitedNodes));
+                if (needToContinue) {
+                    dfs(boardDigraph, w, allPaths, new ArrayList<Integer>(visitedNodes));
+                }
             }
         }
     }
 
-    private void fillAllPaths(int v, Map<Integer, Set<List<Integer>>> allPaths, Set<List<Integer>> pathsToW, int w) {
+    private boolean fillAllPaths(int v, Map<Integer, Set<List<Integer>>> allPaths, Set<List<Integer>> pathsToW, int w) {
         final Set<List<Integer>> pathsToV = allPaths.get(v);
+        boolean needToContinue = false;
         if (pathsToV == null || pathsToV.isEmpty()) {
             List<Integer> pathToW = new ArrayList<Integer>();
             pathToW.add(v);
-            pathsToW.add(pathToW);
+            if (fillFinalWordLists(w, pathToW)) {
+                pathsToW.add(pathToW);
+                needToContinue = true;
+            }
         } else {
             for (List<Integer> pathToV : pathsToV) {
                 if (!pathToV.contains(w)) {
                     List<Integer> pathToW = new ArrayList<Integer>(pathToV);
                     pathToW.add(v);
-                    pathsToW.add(pathToW);
+                    if (fillFinalWordLists(w, pathToW)) {
+                        pathsToW.add(pathToW);
+                        needToContinue = true;
+                    }
                 }
             }
         }
+        return needToContinue;
     }
 
     private void addBottomNeighbor(Graph boardDigraph, int currentIndex, int colsNumber) {
